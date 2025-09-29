@@ -1,0 +1,19 @@
+{
+  "name": "gmu-ai-club-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for GMU AI Club event announcements and reminders",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node bot.js"
+  },
+  "keywords": ["discord", "bot", "events", "announcements"],
+  "author": "GMU AI Club",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.3.1",
+    "googleapis": "^128.0.0"
+  }
+}
