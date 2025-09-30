@@ -231,20 +231,24 @@ async function sendEventAnnouncement(event, isReminder = false) {
             messageText = `🚨 **Event Reminder - Today!**\n\n`;
             messageText += `**${event.title}** is happening today!\n\n`;
         } else {
-            messageText = `📅 **Upcoming Event**\n\n`;
-            messageText += `**${event.title}** is coming up in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}!\n\n`;
+            // Check if event has speaker info (from Google Sheets speaker column)
+            console.log(`==========================================`);
+            console.log(`🔍 DEBUGGING EVENT: ${event.title}`);
+            console.log(`🔍 Full event object:`, JSON.stringify(event, null, 2));
+            console.log(`🔍 Speaker field value:`, event.speaker);
+            console.log(`🔍 Speaker field type:`, typeof event.speaker);
+            console.log(`🔍 Speaker exists check:`, !!(event.speaker && event.speaker.trim() !== ''));
+            console.log(`==========================================`);
+            
+            const speakerText = (event.speaker && event.speaker.trim() !== '') ? ` with ${event.speaker.trim()}` : '';
+            console.log(`🔍 Generated speakerText: "${speakerText}"`);
+            messageText = `**${event.title}${speakerText}** is coming up in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}!\n\n`;
         }
 
         messageText += `${event.description}\n\n`;
         messageText += `📅 **Date:** ${eventDate}\n`;
         messageText += `🕐 **Time:** ${event.time}\n`;
-        messageText += `📍 **Location:** ${event.location}\n`;
-
-        if (isReminder) {
-            messageText += `\nDon't miss it! 🎉`;
-        } else {
-            messageText += `\nMark your calendars! 📝`;
-        }
+        messageText += `📍 **Location:** ${event.location}`;
 
         const messageOptions = { content: messageText };
 
@@ -314,9 +318,18 @@ function parseEventDateTime(dateString, timeString) {
         const eventDate = new Date(dateString);
         if (isNaN(eventDate.getTime())) return null;
         
+        // Handle time ranges (e.g., "2:00 PM - 4:00 PM") - use start time for reminders
+        let timeToUse = timeString.trim();
+        
+        // If it's a time range, extract just the start time
+        const rangeMatch = timeToUse.match(/^(.+?)\s*-\s*(.+)$/);
+        if (rangeMatch) {
+            timeToUse = rangeMatch[1].trim(); // Use start time for reminder calculations
+        }
+        
         // Parse the time (supports formats like "7:00 PM", "19:00", "7 PM", etc.)
         const timeRegex = /^(\d{1,2}):?(\d{0,2})\s*(AM|PM)?$/i;
-        const match = timeString.trim().match(timeRegex);
+        const match = timeToUse.match(timeRegex);
         
         if (!match) return null;
         
