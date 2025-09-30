@@ -340,10 +340,43 @@ function parseEventDateTime(dateString, timeString) {
     }
 }
 
+// Keep-alive for platforms that spin down (like Render)
+function startKeepAlive() {
+    if (process.env.KEEP_ALIVE === 'true') {
+        const http = require('http');
+        const port = process.env.PORT || 3000;
+        
+        // Simple HTTP server for health checks
+        const server = http.createServer((req, res) => {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('GMU AI Club Bot is alive!');
+        });
+        
+        server.listen(port, () => {
+            console.log(`🌐 Keep-alive server running on port ${port}`);
+        });
+        
+        // Self-ping every 10 minutes to prevent spin down
+        setInterval(() => {
+            if (process.env.RENDER_EXTERNAL_URL) {
+                const https = require('https');
+                https.get(process.env.RENDER_EXTERNAL_URL, (res) => {
+                    console.log('🔄 Keep-alive ping sent');
+                }).on('error', (err) => {
+                    console.log('⚠️ Keep-alive ping failed:', err.message);
+                });
+            }
+        }, 10 * 60 * 1000); // 10 minutes
+    }
+}
+
 // Error handling
 process.on('unhandledRejection', error => {
     console.error('❌ Unhandled promise rejection:', error);
 });
+
+// Start keep-alive if needed
+startKeepAlive();
 
 // Login to Discord
 client.login(process.env.DISCORD_BOT_TOKEN);
