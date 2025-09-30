@@ -2,7 +2,17 @@ const { Client, GatewayIntentBits, Collection, EmbedBuilder, AttachmentBuilder }
 const cron = require('node-cron');
 const fs = require('fs');
 const path = require('path');
+
+// Load environment variables (works for both local .env and production)
 require('dotenv').config();
+
+// Debug: Log all environment variables that start with our prefixes
+console.log('🔍 All environment variables check:');
+Object.keys(process.env).forEach(key => {
+    if (key.startsWith('DISCORD_') || key.startsWith('GOOGLE_') || key.startsWith('GUILD_') || key.startsWith('ANNOUNCEMENT')) {
+        console.log(`- ${key}: ${process.env[key] ? 'SET' : 'NOT SET'}`);
+    }
+});
 
 // Create Discord client
 const client = new Client({
