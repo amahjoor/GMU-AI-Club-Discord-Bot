@@ -6,14 +6,6 @@ const path = require('path');
 // Load environment variables (works for both local .env and production)
 require('dotenv').config();
 
-// Debug: Log all environment variables that start with our prefixes
-console.log('🔍 All environment variables check:');
-Object.keys(process.env).forEach(key => {
-    if (key.startsWith('DISCORD_') || key.startsWith('GOOGLE_') || key.startsWith('GUILD_') || key.startsWith('ANNOUNCEMENT')) {
-        console.log(`- ${key}: ${process.env[key] ? 'SET' : 'NOT SET'}`);
-    }
-});
-
 // Create Discord client
 const client = new Client({
     intents: [
@@ -388,16 +380,5 @@ process.on('unhandledRejection', error => {
 // Start keep-alive if needed
 startKeepAlive();
 
-// Debug environment variables
-console.log('🔍 Environment check:');
-console.log('- DISCORD_BOT_TOKEN exists:', !!process.env.DISCORD_BOT_TOKEN);
-console.log('- Token length:', process.env.DISCORD_BOT_TOKEN ? process.env.DISCORD_BOT_TOKEN.length : 0);
-console.log('- Token starts with:', process.env.DISCORD_BOT_TOKEN ? process.env.DISCORD_BOT_TOKEN.substring(0, 10) + '...' : 'undefined');
-
 // Login to Discord
-if (!process.env.DISCORD_BOT_TOKEN) {
-    console.error('❌ DISCORD_BOT_TOKEN environment variable is not set!');
-    process.exit(1);
-}
-
 client.login(process.env.DISCORD_BOT_TOKEN);
