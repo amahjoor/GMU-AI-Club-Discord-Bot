@@ -379,6 +379,173 @@ const commands = [
 
     {
         data: new SlashCommandBuilder()
+            .setName('edit-event')
+            .setDescription('Edit an existing event (Admin only)')
+            .addStringOption(option =>
+                option.setName('identifier')
+                    .setDescription('Event title (or part of it) or Event ID')
+                    .setRequired(true))
+            .addStringOption(option =>
+                option.setName('title')
+                    .setDescription('New event title')
+                    .setRequired(false))
+            .addStringOption(option =>
+                option.setName('description')
+                    .setDescription('New event description')
+                    .setRequired(false))
+            .addStringOption(option =>
+                option.setName('date')
+                    .setDescription('New event date (YYYY-MM-DD format)')
+                    .setRequired(false))
+            .addStringOption(option =>
+                option.setName('time')
+                    .setDescription('New event time (e.g., 2:00 PM)')
+                    .setRequired(false))
+            .addStringOption(option =>
+                option.setName('location')
+                    .setDescription('New event location')
+                    .setRequired(false))
+            .addAttachmentOption(option =>
+                option.setName('image')
+                    .setDescription('New event image/poster')
+                    .setRequired(false))
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageEvents),
+
+        async execute(interaction, eventManager) {
+            await interaction.deferReply({ ephemeral: true });
+
+            try {
+                const identifier = interaction.options.getString('identifier');
+                const events = eventManager.getEvents();
+                
+                // Find event by ID or title
+                let eventToEdit = events.find(event => event.id === identifier);
+                
+                if (!eventToEdit) {
+                    // Search by title
+                    const searchTitle = identifier.toLowerCase();
+                    const matchingEvents = events.filter(event => 
+                        event.title.toLowerCase().includes(searchTitle)
+                    );
+
+                    if (matchingEvents.length === 0) {
+                        await interaction.editReply('❌ No events found matching that title or ID.');
+                        return;
+                    }
+
+                    if (matchingEvents.length > 1) {
+                        const eventList = matchingEvents.map(event => 
+                            `• **${event.title}** (${formatDate(event.date)}) - ID: \`${event.id}\``
+                        ).join('\n');
+
+                        const embed = new EmbedBuilder()
+                            .setTitle('🔍 Multiple Events Found')
+                            .setDescription(`Multiple events match "${identifier}". Please use the specific event ID:\n\n${eventList}`)
+                            .setColor('#FFA726');
+
+                        await interaction.editReply({ embeds: [embed] });
+                        return;
+                    }
+
+                    eventToEdit = matchingEvents[0];
+                }
+
+                // Get new values or keep existing ones
+                const updates = {};
+                const newTitle = interaction.options.getString('title');
+                const newDescription = interaction.options.getString('description');
+                const newDate = interaction.options.getString('date');
+                const newTime = interaction.options.getString('time');
+                const newLocation = interaction.options.getString('location');
+                const newImage = interaction.options.getAttachment('image');
+
+                if (newTitle) updates.title = newTitle;
+                if (newDescription) updates.description = newDescription;
+                if (newTime) updates.time = newTime;
+                if (newLocation) updates.location = newLocation;
+
+                // Validate new date if provided
+                if (newDate) {
+                    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+                    if (!dateRegex.test(newDate)) {
+                        await interaction.editReply('❌ Invalid date format! Please use YYYY-MM-DD format.');
+                        return;
+                    }
+
+                    const eventDate = new Date(newDate);
+                    if (isNaN(eventDate.getTime())) {
+                        await interaction.editReply('❌ Invalid date! Please check your date format.');
+                        return;
+                    }
+
+                    // Check if date is in the past
+                    const today = new Date();
+                    const todayDateString = today.toISOString().split('T')[0];
+                    
+                    if (newDate < todayDateString) {
+                        await interaction.editReply('❌ Cannot set events to past dates!');
+                        return;
+                    }
+
+                    updates.date = newDate;
+                }
+
+                // Handle image upload
+                if (newImage) {
+                    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                    if (!allowedTypes.includes(newImage.contentType)) {
+                        await interaction.editReply('❌ Invalid image format! Please use JPG, PNG, GIF, or WebP.');
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(newImage.url);
+                        const buffer = Buffer.from(await response.arrayBuffer());
+                        
+                        const fileName = `${Date.now()}_${newImage.name}`;
+                        const imagePath = eventManager.saveEventImage(buffer, fileName);
+                        updates.imagePath = imagePath;
+                    } catch (error) {
+                        console.error('Error saving image:', error);
+                        await interaction.editReply('❌ Error saving image. Other changes will be applied without the image.');
+                    }
+                }
+
+                // Apply updates
+                const updatedEvent = eventManager.updateEvent(eventToEdit.id, updates);
+
+                // Create success embed
+                const embed = new EmbedBuilder()
+                    .setTitle('✅ Event Updated Successfully!')
+                    .setDescription(`**${updatedEvent.title}** has been updated`)
+                    .setColor('#4ECDC4')
+                    .addFields([
+                        { name: '📅 Date', value: formatDate(updatedEvent.date), inline: true },
+                        { name: '🕐 Time', value: updatedEvent.time, inline: true },
+                        { name: '📍 Location', value: updatedEvent.location, inline: true },
+                        { name: '📝 Description', value: updatedEvent.description, inline: false }
+                    ])
+                    .setFooter({ 
+                        text: `Event ID: ${updatedEvent.id} | Updated by ${interaction.user.tag}`,
+                        iconURL: interaction.user.displayAvatarURL()
+                    })
+                    .setTimestamp();
+
+                if (updates.imagePath) {
+                    embed.addFields([{ name: '🖼️ Image', value: 'Image updated successfully', inline: true }]);
+                }
+
+                await interaction.editReply({ embeds: [embed] });
+
+            } catch (error) {
+                console.error('Error editing event:', error);
+                await interaction.editReply('❌ An error occurred while editing the event. Please try again.');
+            }
+        }
+    },
+
+    {
+        data: new SlashCommandBuilder()
             .setName('sync-events')
             .setDescription('Sync events from Google Sheets (Admin only)')
             .addBooleanOption(option =>
@@ -479,8 +646,36 @@ const commands = [
                         );
 
                         if (duplicate) {
-                            skippedCount++;
-                            results.push(`⏭️ Skipped: ${sheetEvent.title} (already exists)`);
+                            // Smart update: only update fields that are empty or from Google Sheets
+                            // Preserve manually added data like images and custom descriptions
+                            const updates = {};
+                            let hasUpdates = false;
+
+                            // Only update if the existing event was from Google Sheets or has no custom data
+                            if (duplicate.source === 'google_sheets') {
+                                // Update basic info from Google Sheets
+                                if (duplicate.description !== sheetEvent.description) {
+                                    updates.description = sheetEvent.description;
+                                    hasUpdates = true;
+                                }
+                                if (duplicate.time !== sheetEvent.time) {
+                                    updates.time = sheetEvent.time;
+                                    hasUpdates = true;
+                                }
+                                if (duplicate.location !== sheetEvent.location) {
+                                    updates.location = sheetEvent.location;
+                                    hasUpdates = true;
+                                }
+                            }
+
+                            if (hasUpdates) {
+                                eventManager.updateEvent(duplicate.id, updates);
+                                results.push(`🔄 Updated: ${sheetEvent.title} (from Google Sheets)`);
+                                importedCount++;
+                            } else {
+                                results.push(`⏭️ Skipped: ${sheetEvent.title} (already exists, preserving manual changes)`);
+                                skippedCount++;
+                            }
                             continue;
                         }
 

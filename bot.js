@@ -74,8 +74,8 @@ client.on('interactionCreate', async (interaction) => {
 function startSchedulers() {
     console.log('🕐 Starting event schedulers...');
     
-    // Check for 7-day advance announcements (runs daily at 9:00 AM)
-    cron.schedule('0 9 * * *', () => {
+    // Check for 7-day advance announcements (runs daily at 10:15 AM)
+    cron.schedule('15 10 * * *', () => {
         checkForAdvanceAnnouncements();
     }, {
         timezone: process.env.TIMEZONE || 'America/New_York'
@@ -172,9 +172,9 @@ async function checkForMissedAnnouncements() {
 }
 
 async function checkMissedAdvanceAnnouncements(now, daysAhead) {
-    // Check if we missed any advance announcements (should have been sent by 9:00 AM)
+    // Check if we missed any advance announcements (should have been sent by 10:15 AM)
     const shouldHaveAnnouncedBy = new Date(now);
-    shouldHaveAnnouncedBy.setHours(9, 0, 0, 0);
+    shouldHaveAnnouncedBy.setHours(10, 15, 0, 0);
     
     if (now >= shouldHaveAnnouncedBy) {
         const targetDate = new Date(now);
@@ -342,32 +342,40 @@ function parseEventDateTime(dateString, timeString) {
     }
 }
 
-// Keep-alive for platforms that spin down (like Render)
-function startKeepAlive() {
-    if (process.env.KEEP_ALIVE === 'true') {
-        const http = require('http');
-        const port = process.env.PORT || 3000;
-        
-        // Simple HTTP server for health checks
-        const server = http.createServer((req, res) => {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('GMU AI Club Bot is alive!');
-        });
-        
-        server.listen(port, () => {
-            console.log(`🌐 Keep-alive server running on port ${port}`);
-        });
-        
-        // Self-ping every 10 minutes to prevent spin down
+// Health check server for Koyeb and keep-alive functionality
+function startHealthCheckServer() {
+    const http = require('http');
+    const port = process.env.PORT || 8000; // Koyeb expects port 8000
+    
+    // Simple HTTP server for health checks
+    const server = http.createServer((req, res) => {
+        if (req.url === '/health' || req.url === '/') {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                status: 'healthy',
+                bot: 'GMU AI Club Bot',
+                uptime: process.uptime(),
+                timestamp: new Date().toISOString()
+            }));
+        } else {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('Not Found');
+        }
+    });
+    
+    server.listen(port, () => {
+        console.log(`🌐 Health check server running on port ${port}`);
+    });
+    
+    // Self-ping for platforms that need it
+    if (process.env.KEEP_ALIVE === 'true' && process.env.RENDER_EXTERNAL_URL) {
         setInterval(() => {
-            if (process.env.RENDER_EXTERNAL_URL) {
-                const https = require('https');
-                https.get(process.env.RENDER_EXTERNAL_URL, (res) => {
-                    console.log('🔄 Keep-alive ping sent');
-                }).on('error', (err) => {
-                    console.log('⚠️ Keep-alive ping failed:', err.message);
-                });
-            }
+            const https = require('https');
+            https.get(process.env.RENDER_EXTERNAL_URL, (res) => {
+                console.log('🔄 Keep-alive ping sent');
+            }).on('error', (err) => {
+                console.log('⚠️ Keep-alive ping failed:', err.message);
+            });
         }, 10 * 60 * 1000); // 10 minutes
     }
 }
@@ -377,8 +385,10 @@ process.on('unhandledRejection', error => {
     console.error('❌ Unhandled promise rejection:', error);
 });
 
-// Start keep-alive if needed
-startKeepAlive();
+// Start health check server if needed (for web deployments)
+if (process.env.NODE_ENV === 'web' || process.env.HEALTH_CHECK === 'true') {
+    startHealthCheckServer();
+}
 
 // Login to Discord
 client.login(process.env.DISCORD_BOT_TOKEN);
