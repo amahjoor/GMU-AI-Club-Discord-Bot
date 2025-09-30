@@ -13,7 +13,7 @@ async function sendAdvanceAnnouncements(client, eventManager, interaction = null
             .filter(event => {
                 const eventDate = new Date(event.date);
                 eventDate.setHours(0, 0, 0, 0);
-                return eventDate > today && !event.announcementSent;
+                return eventDate > today; // Removed !event.announcementSent restriction
             })
             .map(event => {
                 const eventDate = new Date(event.date);
@@ -30,12 +30,12 @@ async function sendAdvanceAnnouncements(client, eventManager, interaction = null
         if (upcomingEvents.length === 0) {
             if (interaction) {
                 const embed = new EmbedBuilder()
-                    .setTitle('📅 No Announcements Needed')
-                    .setDescription('No future events found that need advance announcements.')
+                    .setTitle('📅 No Events Available')
+                    .setDescription('No future events found to announce.')
                     .setColor('#FFA726');
                 await interaction.editReply({ embeds: [embed] });
             }
-            return 'No future events found that need announcements';
+            return 'No future events found';
         }
 
         // Always show selection if we have an interaction
@@ -67,7 +67,7 @@ async function sendTodayReminders(client, eventManager, interaction = null) {
         const futureEvents = allEvents
             .filter(event => {
                 const eventDate = new Date(event.date);
-                return eventDate >= now && !event.reminderSent;
+                return eventDate >= now; // Removed !event.reminderSent restriction
             })
             .map(event => {
                 const eventDate = new Date(event.date);
@@ -87,12 +87,12 @@ async function sendTodayReminders(client, eventManager, interaction = null) {
         if (futureEvents.length === 0) {
             if (interaction) {
                 const embed = new EmbedBuilder()
-                    .setTitle('🚨 No Reminders Needed')
-                    .setDescription('No future events found that need reminders.')
+                    .setTitle('🚨 No Events Available')
+                    .setDescription('No future events found to send reminders for.')
                     .setColor('#FFA726');
                 await interaction.editReply({ embeds: [embed] });
             }
-            return 'No future events found that need reminders';
+            return 'No future events found';
         }
 
         // Always show selection if we have an interaction
