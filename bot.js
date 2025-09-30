@@ -378,5 +378,16 @@ process.on('unhandledRejection', error => {
 // Start keep-alive if needed
 startKeepAlive();
 
+// Debug environment variables
+console.log('🔍 Environment check:');
+console.log('- DISCORD_BOT_TOKEN exists:', !!process.env.DISCORD_BOT_TOKEN);
+console.log('- Token length:', process.env.DISCORD_BOT_TOKEN ? process.env.DISCORD_BOT_TOKEN.length : 0);
+console.log('- Token starts with:', process.env.DISCORD_BOT_TOKEN ? process.env.DISCORD_BOT_TOKEN.substring(0, 10) + '...' : 'undefined');
+
 // Login to Discord
+if (!process.env.DISCORD_BOT_TOKEN) {
+    console.error('❌ DISCORD_BOT_TOKEN environment variable is not set!');
+    process.exit(1);
+}
+
 client.login(process.env.DISCORD_BOT_TOKEN);
