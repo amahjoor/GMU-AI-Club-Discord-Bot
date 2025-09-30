@@ -385,10 +385,8 @@ process.on('unhandledRejection', error => {
     console.error('❌ Unhandled promise rejection:', error);
 });
 
-// Start health check server if needed (for web deployments)
-if (process.env.NODE_ENV === 'web' || process.env.HEALTH_CHECK === 'true') {
-    startHealthCheckServer();
-}
+// Start health check server for Koyeb (always needed since Koyeb uses web: process type)
+startHealthCheckServer();
 
 // Login to Discord
 client.login(process.env.DISCORD_BOT_TOKEN);
