@@ -4,37 +4,38 @@ const path = require('path');
 
 async function sendAdvanceAnnouncements(client, eventManager, interaction = null) {
     try {
-        const daysAhead = parseInt(process.env.ANNOUNCEMENT_DAYS_AHEAD) || 7;
-        
-        // Get all events within the next 7 days that need announcements
-        const upcomingEvents = [];
+        // Get ALL future events that need announcements (no 7-day limit)
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
         
-        for (let i = 1; i <= daysAhead; i++) {
-            const checkDate = new Date(today);
-            checkDate.setDate(checkDate.getDate() + i);
-            
-            const dayEvents = eventManager.getEventsForDate(checkDate);
-            for (const event of dayEvents) {
-                if (!event.announcementSent) {
-                    upcomingEvents.push({
-                        ...event,
-                        daysAhead: i,
-                        dateString: checkDate.toDateString()
-                    });
-                }
-            }
-        }
+        const allEvents = eventManager.getEvents();
+        const upcomingEvents = allEvents
+            .filter(event => {
+                const eventDate = new Date(event.date);
+                eventDate.setHours(0, 0, 0, 0);
+                return eventDate > today && !event.announcementSent;
+            })
+            .map(event => {
+                const eventDate = new Date(event.date);
+                const timeDiff = eventDate - today;
+                const daysAhead = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                return {
+                    ...event,
+                    daysAhead: daysAhead,
+                    dateString: eventDate.toDateString()
+                };
+            })
+            .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
         
         if (upcomingEvents.length === 0) {
             if (interaction) {
                 const embed = new EmbedBuilder()
                     .setTitle('📅 No Announcements Needed')
-                    .setDescription(`No events found in the next ${daysAhead} days that need advance announcements.`)
+                    .setDescription('No future events found that need advance announcements.')
                     .setColor('#FFA726');
                 await interaction.editReply({ embeds: [embed] });
             }
-            return `No events found in the next ${daysAhead} days that need announcements`;
+            return 'No future events found that need announcements';
         }
 
         // Always show selection if we have an interaction
@@ -59,33 +60,55 @@ async function sendAdvanceAnnouncements(client, eventManager, interaction = null
 
 async function sendTodayReminders(client, eventManager, interaction = null) {
     try {
-        const today = new Date();
-        const events = eventManager.getEventsForDate(today).filter(event => !event.reminderSent);
+        // Get ALL future events that need reminders (not just today)
+        const now = new Date();
+        const allEvents = eventManager.getEvents();
         
-        if (events.length === 0) {
+        const futureEvents = allEvents
+            .filter(event => {
+                const eventDate = new Date(event.date);
+                return eventDate >= now && !event.reminderSent;
+            })
+            .map(event => {
+                const eventDate = new Date(event.date);
+                const isToday = eventDate.toDateString() === now.toDateString();
+                const timeDiff = eventDate - now;
+                const daysAhead = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+                
+                return {
+                    ...event,
+                    daysAhead: daysAhead,
+                    isToday: isToday,
+                    dateString: eventDate.toDateString()
+                };
+            })
+            .sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort by date
+        
+        if (futureEvents.length === 0) {
             if (interaction) {
                 const embed = new EmbedBuilder()
                     .setTitle('🚨 No Reminders Needed')
-                    .setDescription(`No events found for today (${today.toDateString()}) that need reminders.`)
+                    .setDescription('No future events found that need reminders.')
                     .setColor('#FFA726');
                 await interaction.editReply({ embeds: [embed] });
             }
-            return `No events found for today that need reminders`;
+            return 'No future events found that need reminders';
         }
 
         // Always show selection if we have an interaction
         if (interaction) {
-            return await handleEventSelection(client, events, interaction, true, eventManager);
+            return await handleEventSelection(client, futureEvents, interaction, true, eventManager);
         }
 
         // If no interaction, send all (for automated system)
         let results = [];
-        for (const event of events) {
+        for (const event of futureEvents) {
             const result = await sendRealAnnouncement(client, event, true, eventManager);
-            results.push(`• ${event.title}: ${result}`);
+            const dayInfo = event.isToday ? 'today' : `${event.daysAhead} days`;
+            results.push(`• ${event.title} (${dayInfo}): ${result}`);
         }
         
-        return `Sent ${events.length} reminder(s) for today:\n${results.join('\n')}`;
+        return `Sent ${futureEvents.length} reminder(s):\n${results.join('\n')}`;
         
     } catch (error) {
         console.error('Error in sendTodayReminders:', error);
